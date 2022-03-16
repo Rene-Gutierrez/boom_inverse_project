@@ -1,0 +1,104 @@
+---
+title:  "Competitors"
+author: "Rene Gutierrez Marquez"
+date:   '2022-03-02'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Intro
+
+In order to know when does our method performs better, first we have to explore 
+the ways that competitors fail. We will consider several type of competitors. A first division will be focused on the Object use. A selling point of our work is the integration of objects, so a valid question is to see what happens when we are only looking one object at the time vs looking at both objects together. For each of these cases we will consider methods that consider the region structure and methods that don't.
+
+### Frequentist Competitors
+
+For frequentist competitors we will check if a voxel/edge is valid using p-values. Then we will proceed to select a region if at least a voxel belonging to that region or an edge connecting to that region is selected. If only one object is used, we only will look at that object for region selection. If both objects are selected then both objects will be selected for Region selection. 
+
+Next we will explain each frequentist competitor. 
+
+#### No multiplicity Correction
+
+We start from the simplest competitor and build on it to reach a more sophisticated competitor.
+A first approach would be to see which coefficients are significant individually, making no adjustment for multiple testing. That is every coefficient corresponding to a voxel or an edge is selected if the associated p-value is 0.05 or less.
+
+#### Global Bonferroni's Correction
+
+For multiplicity correction we will use Bonferroni's correction. However, we will consider 2 ways for this correction, taking into account the regions and not taking into account the regions. In this case, we will consider taking all of the coefficients to perform Bonferroni's correction.
+
+#### Regional Bonferroni's Correction
+
+For the regional multiplicity correction we will apply Bonferroni's by region. However, for the Network matrix edge coefficients will correspond to 2 regions at the time. In this case, we will correct in 2 ways, assigning one half to a region and the other half to the other region and duplicating the correction.
+
+#### Global GLM
+
+In the same way Bonferroni's correction can be applied globally and regionally, GLM selection can also be applied globally and regionally. The first approach applies the GLM taking into account all the coefficients regardless of the region.
+
+#### Regional GLM
+
+In this case we apply the GLM method by region, if an edge is selected in one region but not in another we will consider two versions, in the first version we will consider the edge coefficient selected if it is selected in both regions. The second version will consider the edge is selected if it is selected in at least one region. Probably we should emphasize this point. It is not clear, how GLM should be applied in this context.
+
+### Bayesian Competitors
+
+For Bayesian competitors we will consider individual Spike & Slab and Horseshoe prior. 
+
+#### Spike & Slab
+
+In this case we will apply an Spike & Slab to each coefficient. A voxel/edge will be selected if the probability of the slab parameter to be 1 is greater than 0.5. In the same way as with the frequentist competitors a region will be selected if it has at least 1 voxel/edge selected in that region. For this competitor we do multiplicity correction and not multiplicity correction.
+
+In the case of the Spike & Slab prior, there is no difference in considering the regional structure or not. In fact, a way to incorporate the region structure is doing it with our method.
+
+#### Horseshoe Prior
+
+For the Horseshoe prior competitor we select regions according to an ad-hoc procedure based on clustering. Since the horseshoe prior does not result in exact zeros but considerable shrinkage, we to determine first which coefficients are zeros. To do so, we use the median from our MCMC sample to use as an estimator of the coefficient. Then we perform a k-means clustering procedure with two centers. In this way we hope that small estimates are clustered together, and we also expect they will correspond to zero coefficients. In the same way as with the other methods, we select a region if at least one coefficient in that region do not belong to the small values cluster.
+
+We do this globally only, since trying to do this procedure by region will necessary enforce non zero coefficients in every region, by design. Nevertheless, other regional approaches can be taken, namely to have regional shrinking parameters instead of a global shrinking parameter. Of course, this is one of the thing we implement in our proposed approach.
+
+
+### Results
+
+```{r TPR and TNR, echo=FALSE}
+tpr      <- readRDS(file = "tpr_comp.rds")
+tnr      <- readRDS(file = "tnr_comp.rds")
+t_tp_mse <- readRDS(file = "t_tp_mse_comp.rds")
+t_fp_mse <- readRDS(file = "t_fp_mse_comp.rds")
+t_tn_mse <- readRDS(file = "t_tn_mse_comp.rds")
+t_fn_mse <- readRDS(file = "t_fn_mse_comp.rds")
+b_tp_mse <- readRDS(file = "b_tp_mse_comp.rds")
+b_fp_mse <- readRDS(file = "b_fp_mse_comp.rds")
+b_tn_mse <- readRDS(file = "b_tn_mse_comp.rds")
+b_fn_mse <- readRDS(file = "b_fn_mse_comp.rds")
+t_mse    <- readRDS(file = "t_mse_comp.rds")
+b_mse    <- readRDS(file = "b_mse_comp.rds")
+mse      <- readRDS(file = "mse_comp.rds")
+lab      <- readRDS(file = "lab_comp.rds")
+rowNames <- c("Joint TPR",          "Joint TNR",          "Joint TPR * TNR",
+              "Network Matrix TPR", "Network Matrix TNR", "Network Matrix TPR * TNR",
+              "Grey Matter TPR",    "Grey Matter TNR",    "Grey Matter TPR * TNR")
+tableDat <- round(rbind(colMeans(tpr[1,,]), colMeans(tnr[1,,]), colMeans(tpr[1,,] * tnr[1,,]),
+                        colMeans(tpr[2,,]), colMeans(tnr[2,,]), colMeans(tpr[2,,] * tnr[2,,]),
+                        colMeans(tpr[3,,]), colMeans(tnr[3,,]), colMeans(tpr[3,,] * tnr[3,,])), 5)
+knitr::kable(x         = data.frame(cbind(rowNames,
+                                          tableDat)),
+             format    = "pipe",
+             col.names = c("", lab),
+             caption   = "TPR and TNR for Competitors using both Objects (Joint), only the Network Matrix and only the Grey Matter values.")
+```
+
+```{r MSE, echo=FALSE}
+# rowNames <- c("MSE", "T MSE", "B MSE", "T TP MSE", "T FP MSE", "T TN MSE", "T FN MSE",
+#                                        "B TP MSE", "B FP MSE", "B TN MSE", "B FN MSE")
+# tableDat <- round(rbind(colMeans(mse[1,,]), colMeans(t_mse),    colMeans(b_mse),
+#                         colMeans(t_tp_mse), colMeans(t_fp_mse), colMeans(t_tn_mse), colMeans(t_fn_mse),
+#                         colMeans(b_tp_mse), colMeans(b_fp_mse), colMeans(b_tn_mse), colMeans(b_fn_mse)), 5)
+rowNames <- c("MSE", "T MSE", "B MSE")
+tableDat <- round(rbind(colMeans(mse[1,,]), colMeans(t_mse),    colMeans(b_mse)), 6)
+knitr::kable(x         = data.frame(cbind(rowNames,
+                                          tableDat)),
+             format    = "pipe",
+             col.names = c("", lab),
+             caption   = "MSE")
+```
